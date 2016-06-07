@@ -1,0 +1,111 @@
+---
+title: "Reproducible Research: Peer Assessment 1"
+output: 
+  html_document:
+    keep_md: true
+---
+
+
+## Loading and preprocessing the data
+
+```{r read_data,results='hide'}
+data1 <- read.csv("activity.csv")
+data <- data1
+```
+
+
+## What is mean total number of steps taken per day?
+```{r calculate mean, results='asis'}
+steps_by_day <- tapply(data1$steps, data1$date, sum, na.rm=TRUE)
+library(ggplot2)
+
+a <- qplot(steps_by_day)
+print(a)
+mean_steps_by_day <- tapply(data1$steps, data1$date, mean, na.rm = TRUE)
+median_steps_by_day <- tapply(data1$steps, data1$date, median, na.rm=TRUE)
+
+library(xtable)
+xtmean <- xtable(as.matrix(mean_steps_by_day))
+print(xtmean, type="html")
+xtmedian <- xtable(as.matrix(median_steps_by_day))
+print(xtmedian, type = "html")
+
+
+```
+
+
+## What is the average daily activity pattern?
+
+```{r averages}
+library(ggplot2)
+averages <- aggregate(x=list(steps = data$steps), by=list(interval=data$interval), FUN=mean, na.rm=TRUE)
+ggplot(averages, aes(x=interval, y=steps)) +
+    geom_line() +
+    xlab("5-minute interval") + 
+    ylab("average number of steps taken")
+
+
+```
+
+On average across all the days in the dataset, the 5-minute interval contains the maximum number of steps?
+```{r, results='hide'}
+averages[which.max(averages$steps),]
+
+```
+
+## Imputing missing values
+-  Calculate and report the total number of missing values in the dataset
+(i.e. the total number of rows with NAs)
+
+```{r}
+a <- data1[is.na(data1$steps),]
+nrow(a)
+```
+
+Now we fill the missing values using the means of the 5-min intervals 
+```{r filling data}
+fill.val <- function(steps,interval) {
+    filled <- NA
+    if(!is.na(steps))
+        filled <- c(steps)
+    else 
+        filled <- averages[averages$interval==interval, "steps"]
+        return(filled)
+}
+
+filled.data <- data
+filled.data$steps <- mapply(fill.val, filled.data$steps, filled.data$interval)
+
+```
+Now using the filled data set, lets make a histogram of the total number of steps taken each day and calculate the mean and the median total number of steps
+```{r}
+total.steps <- tapply(filled.data$steps, filled.data$date, FUN=sum)
+qplot(total.steps, binwidth=1000, xlab="total number of steps taken each day")
+mean(total.steps)
+median(total.steps)
+```
+## Are there differences in activity patterns between weekdays and weekends?
+
+```{r weekdays}
+weekday.or.weekend <-function(date) {
+    day <- weekdays(date)
+    if(day %in% c("Monday","Tuesday", "Wednesday", "Thursday", "Friday"))
+        return("weekday") 
+    else if (day %in% c("Saturday", "Sunday"))
+        return("weekend")
+    else
+        stop("invalid date")
+}
+
+filled.data$date <- as.Date(filled.data$date)
+filled.data$day <- sapply(filled.data$date, FUN = weekday.or.weekend)
+
+averages <- aggregate(steps ~ interval + day, data=filled.data, mean)
+ggplot(averages, aes(y= steps, x =interval)) +
+        geom_line() +
+        facet_grid(day~.) +
+        xlab("5-minute interval") + 
+        ylab("Number of steps")
+        
+
+```
